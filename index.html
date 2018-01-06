@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <title>Chloropeth</title>
+        <script type="text/javascript" src="lib/d3.v3.js"></script>
+        <script type="text/javascript" src="lib/topojson.min.js"></script>
+        <script type="text/javascript" src="lib/d3-queue.min.js"></script>
+    	<script type="text/javascript" src = "lib/d3tip.js"></script>
+
+		<style>
+
+			.states :hover {
+			  fill: #c30000;
+			}
+
+			.state-borders {
+			  fill: none;
+			  stroke: #fff;
+			  stroke-width: 0.5px;
+			  stroke-linejoin: round;
+			  stroke-linecap: round;
+			  pointer-events: none;
+			}
+
+			.d3-tip {
+				  line-height: 1.5;
+				  padding: 6px;
+				  background: rgba(0, 0, 0, 0.8);
+				  color: #fff;
+				  border-radius: 2px;
+				}
+
+		</style>        
+    </head>
+    <body>
+        <script type="text/javascript">
+
+			//initializing tip
+			var tip = d3.tip().attr('class', 'd3-tip').html(function(d){ 
+				var values =d.properties.valuesAge;
+				var str = "";
+				values.forEach(function(e){
+					str += e.name + "<strong> (" + "Age:" + e.median_age +") </strong> <br/>"
+				})
+				return str;
+
+			 });
+
+			tip.direction('s')
+
+			var path = d3.geo.path();
+
+          	var svg = d3.select("body")
+          				.append("svg")
+          				.attr("height", 600)
+          				.attr("width", 960)       				
+
+          	svg.call(tip);
+
+          	var q = d3.queue()
+
+          	.defer(d3.csv, 'median_ages.csv')
+			.defer(d3.json, 'median_earnings.json')
+			.defer(d3.json, 'us.json')
+			.await(function(error, ages, earning, us) {
+		      if (error) throw error;
+		      makeMyMap(ages, earning, us);
+		    });
+
+			function makeMyMap(ages,earning,us){	
+				// console.log(earning)
+				var color = d3.scale.quantize()
+          					.range(['rgb(222,235,247)','rgb(198,219,239)','rgb(158,202,225)','rgb(107,174,214)','rgb(66,146,198)','rgb(33,113,181)','rgb(8,81,156)','rgb(8,48,107)'])
+          					.domain([d3.min(earning, function(d){return d['median_earnings']}), d3.max(earning, function(d){return d['median_earnings']}) ])
+          		var colorsRgb = ['rgb(247,251,255)','rgb(222,235,247)','rgb(198,219,239)','rgb(158,202,225)','rgb(107,174,214)','rgb(66,146,198)','rgb(33,113,181)','rgb(8,81,156)','rgb(8,48,107)'];
+          		// var colorsLabels = d3.range(10000, d3.max(earning, function(d){return d['median_earnings']}) , 3100)
+
+          		var colorsLabels = ["10000","15000", "18000", "21000", "24000", "27000", "30000", "33000"];
+
+          		
+          		var nesteAgesState = d3.nest()			    								
+										.key(function(d) { return d.id; })
+										.sortKeys(function(a, b){return a-b})
+										.entries(ages);
+
+				nesteAgesState.map(function(elem,index){
+					elem.values.sort(function(a,b){return a.median_age - b.median_age});
+					elem.values = elem.values.slice(0, 5);
+				})
+
+
+
+          		var data = topojson.feature(us, us.objects.states).features;
+          		
+
+          		for(var i = 0; i < data.length; i++){
+          			for(var j = 0; j < earning.length; j++){
+	          			if (earning[j].id == data[i].id){
+	          				data[i].properties.medianEarnings = earning[j]['median_earnings']
+	          				break;
+	          			}
+          			}
+          			for(var j = 0; j < nesteAgesState.length; j++){
+	          			if (parseInt(nesteAgesState[j].key) == data[i].id){
+	          				data[i].properties.valuesAge =  nesteAgesState[j].values;
+	          				break;
+	          			}
+          			}
+          		}
+
+				svg.append("g")
+				    .attr("class", "states")
+				    .selectAll("path")
+				    .data(data)
+				    .enter().append("path")
+				    .attr("d", path)
+				    .attr("y","200")				    
+				    .on('mouseover', tip.show)
+				    .on('mouseout', tip.hide)
+				    .style({"fill": function(d){				    	
+							    	var value = d.properties.medianEarnings;
+							    	
+							    	if(value){
+							    		return color(value);
+							    	}else{
+							    		return "#fff";
+							    	}
+								},
+					});
+
+				svg.append("path")
+				    .attr("class", "state-borders")
+				    .attr("d", path(topojson.mesh(us, us.objects.states, function(a, b) { return a !== b; })))
+
+				svg.selectAll('rect')
+					.data(colorsRgb)
+					.enter()
+					.append('rect')
+					.attr({
+						x: 850,
+						y: function(d,i){
+							return 250 + i *22
+						},
+						height: "20px",
+						width: "20px",
+						fill : function(d){
+							
+							return d;
+						}
+					})	
+
+				svg.selectAll('text')
+					.data(colorsLabels)
+					.enter()
+					.append("text")
+					.text(function(d){ return "$ " + d;})
+					.attr({
+						x: 880,
+						y: function(d,i){
+							return 287 + i *22
+						},
+						height: "20px",
+						width: "20px",
+						"font-size": "12px"
+				})	
+
+				
+			}
+        </script>
+    </body>
+</html>     
+
+
